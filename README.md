@@ -10,10 +10,6 @@ Paste a repository link, ask a question, and the agent walks the real file tree,
 reads the source that bears on your question, and answers with citations to
 specific files and lines. It is not summarizing the README.
 
-Repo Reader is a self-hosted project. It does not connect to an
-author-operated application, database, or Vercel project. Your installation
-uses only the infrastructure and credentials that you configure.
-
 ## How it works
 
 | Piece | What it does |
@@ -22,7 +18,7 @@ uses only the infrastructure and credentials that you configure.
 | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) | Routes the model call. Change the model by editing one string in `agent/agent.ts`. |
 | [AI Elements](https://ai-sdk.dev/elements) | The chat UI components in `components/ai-elements/`. |
 | Next.js 16 | Hosts both. `withEve()` mounts the agent at `/eve/v1/*` on this app's origin. |
-| [Postgres](https://www.postgresql.org) | Stores the chat index behind the sidebar. Neon is one convenient option, but any compatible database you own works. |
+| [Neon Postgres](https://neon.tech) | Stores the chat index behind the sidebar. Provisioned through the Vercel Marketplace. |
 
 The agent has five read-only tools over the GitHub REST API:
 
@@ -65,71 +61,44 @@ model cannot run arbitrary shell. The clone command is built by
 `agent/lib/workspace.ts` from a validated owner, repo, and ref, and any token is
 passed through the environment rather than the command line.
 
-## Quick start: MCP server
-
-With Node.js 22.22.2 or newer and Git installed, the MCP server can run without
-a database or model API key:
+## Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/repo-reader.git
-cd repo-reader
-npm install
-npm run mcp:dev
-```
-
-Connect an MCP client to `http://localhost:3001/api/mcp`. Four tools work
-without credentials. To enable higher API limits and `search_repo_code`, copy
-`.env.example` to `.env.local`, add a read-only `GITHUB_TOKEN`, and load it when
-starting the standalone server:
-
-```bash
-npx dotenv -e .env.local -- npm run mcp:dev
-```
-
-## Run the full web app
-
-### Prerequisites
-
-- Node.js 22.22.2 or newer
-- Git
-- A Postgres database, such as a Neon project you own
-- A Vercel AI Gateway API key for the chat agent
-- Optionally, a read-only GitHub token for higher API limits and MCP code search
-
-If you have not already cloned your fork:
-
-```bash
-git clone https://github.com/YOUR_USERNAME/repo-reader.git
-cd repo-reader
 npm install
 cp .env.example .env.local
 ```
 
-Fill in `.env.local` with credentials from services you control:
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `DATABASE_URL` | For the web app | Postgres connection used by the chat-history sidebar. |
-| `AI_GATEWAY_API_KEY` | For the web app | Authenticates model calls through your Vercel AI Gateway account. |
-| `GITHUB_TOKEN` | Optional | Raises GitHub API limits and enables indexed code search for MCP callers. |
-
-Use a least-privilege, read-only GitHub token. Public repository metadata,
-listings, file reads, and commits work without one.
-
-Initialize the database:
+Provision the database and pull every environment variable:
 
 ```bash
+vercel link
+vercel integration add neon
+vercel env pull .env.local --yes
 npx dotenv -e .env.local -- npx tsx scripts/db-setup.mts
 ```
 
-The setup script is idempotent, so it is safe to run again. Start the local app:
+`db-setup` is idempotent — re-run it any time. To configure by hand instead,
+copy `.env.example` to `.env.local` and fill it in.
+
+Fill in `.env.local`:
+
+- **`DATABASE_URL`** — required for the chat-history sidebar. Use a Neon
+  Postgres connection string or another compatible Postgres database.
+- **`AI_GATEWAY_API_KEY`** — required. Get one from the
+  [AI Gateway dashboard](https://vercel.com/dashboard/ai-gateway), or run
+  `npx eve link` to pull credentials from a linked Vercel project instead.
+- **`GITHUB_TOKEN`** — optional. Public repository metadata, listings, reads,
+  and commits work without one. A token raises the GitHub API budget and enables
+  indexed code search for MCP callers. Use a least-privilege, read-only token;
+  do not grant private-repository access unless your own deployment needs it.
+
+Then:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`. One development server runs both the Next.js app
-and the eve agent.
+One dev server runs both the Next.js app and the eve agent.
 
 ## MCP server
 
@@ -161,47 +130,17 @@ The MCP endpoint itself has no user authentication. Its tools enforce public
 repositories, but callers can still consume your GitHub API quota. Add edge
 authentication or rate limiting before operating it as a shared public service.
 
-## Self-hosting
-
-### Any Node.js host
-
-Provide the same environment variables through your hosting platform, then run:
-
-```bash
-npm ci
-npm run build
-npm start
-```
-
-The server listens on the platform-provided `PORT`. Point your MCP client to
-`https://YOUR_DOMAIN/api/mcp`.
-
-An MCP-only deployment does not need `DATABASE_URL` or `AI_GATEWAY_API_KEY`.
-Those variables are only needed for the web chat and its history sidebar.
-
-The default eve channel policy in `agent/channels/eve.ts` permits local
-development and callers authenticated by Vercel OIDC. Before deploying the web
-chat somewhere else, replace or extend that policy with authentication for your
-users. Do not expose the model-backed chat endpoint anonymously unless you
-intend to pay for every request.
-
-### Your own Vercel project
+## Deploying
 
 `withEve()` writes the agent into the build output, so the app and the agent
-deploy together. From your fork, create a project in your own Vercel account:
+deploy together as a single Vercel project:
 
 ```bash
-npx vercel link
-npx vercel integration add neon
-npx vercel env add AI_GATEWAY_API_KEY
-# Optional:
-npx vercel env add GITHUB_TOKEN
-npx vercel deploy --prod
+npx vercel deploy
 ```
 
-The Neon integration supplies `DATABASE_URL`; you can instead add the connection
-string from any Postgres database you own. `GITHUB_TOKEN` is optional and can be
-omitted.
+Set `AI_GATEWAY_API_KEY` and `GITHUB_TOKEN` in the project's environment
+variables first.
 
 **Before making the deployment public, read `agent/channels/eve.ts`.** eve fails
 closed: the current policy admits local development and Vercel OIDC callers, and
