@@ -1,25 +1,38 @@
-import { neon } from "@neondatabase/serverless";
+import "server-only";
+import { resolve } from "node:path";
+import {
+  createPostgresChatStore,
+  createSqliteChatStore,
+  type ChatStore,
+} from "./chat-store";
 
 /**
- * Lazy Neon client.
- *
- * `neon()` throws when DATABASE_URL is missing, and Next.js evaluates
- * top-level module code during `next build` — so constructing this eagerly
- * would break any build that runs before the database is provisioned.
- * A plain function, not a Proxy: Proxy wrappers break libraries that inspect
- * the client object.
+ * Lazily selects Postgres when DATABASE_URL is present, otherwise SQLite.
+ * Delaying initialization keeps builds independent from runtime credentials.
  */
-let client: ReturnType<typeof neon> | null = null;
+let storePromise: Promise<ChatStore> | null = null;
 
-export function getSql() {
-  if (!client) {
-    const url = process.env.DATABASE_URL;
-    if (!url) {
-      throw new Error(
-        "DATABASE_URL is not set. Run `vercel env pull .env.local --yes`.",
-      );
-    }
-    client = neon(url);
+export function getChatStore(): Promise<ChatStore> {
+  if (!storePromise) storePromise = createDefaultChatStore();
+  return storePromise;
+}
+
+async function createDefaultChatStore(): Promise<ChatStore> {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (databaseUrl) return createPostgresChatStore(databaseUrl);
+
+  const configuredPath = process.env.REPO_READER_DB_PATH?.trim();
+  if (process.env.VERCEL) {
+    throw new Error(
+      "DATABASE_URL is required on Vercel because SQLite cannot persist on its ephemeral filesystem.",
+    );
   }
-  return client;
+
+  const databasePath = configuredPath
+    ? configuredPath === ":memory:"
+      ? configuredPath
+      : resolve(configuredPath)
+    : resolve(".data/repo-reader.db");
+
+  return createSqliteChatStore(databasePath);
 }

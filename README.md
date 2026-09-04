@@ -18,7 +18,7 @@ specific files and lines. It is not summarizing the README.
 | [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) | Routes the model call. Change the model by editing one string in `agent/agent.ts`. |
 | [AI Elements](https://ai-sdk.dev/elements) | The chat UI components in `components/ai-elements/`. |
 | Next.js 16 | Hosts both. `withEve()` mounts the agent at `/eve/v1/*` on this app's origin. |
-| [Postgres](https://www.postgresql.org) | Stores the chat index behind the sidebar. Neon is one convenient option, but any compatible database you own works. |
+| SQLite or [Postgres](https://www.postgresql.org) | Stores the chat index behind the sidebar. SQLite works automatically for one instance; Postgres supports production and teams. |
 
 ## Quick start: MCP server
 
@@ -56,11 +56,15 @@ Fill in `.env.local` with credentials from services you control:
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | For the web app | Postgres connection used by the chat-history sidebar. |
+| `DATABASE_URL` | Optional | Selects Postgres instead of the default local SQLite database. |
+| `REPO_READER_DB_PATH` | Optional | SQLite file path. Defaults to `.data/repo-reader.db`. |
 | `AI_GATEWAY_API_KEY` | For the web app | Authenticates model calls through your Vercel AI Gateway account. |
 | `GITHUB_TOKEN` | Optional | Raises GitHub API limits and enables indexed code search for MCP callers. |
 
-Initialize the database:
+With no database variables, Repo Reader creates `.data/repo-reader.db` and its
+schema automatically on first use. No database setup command is needed.
+
+For Postgres, set `DATABASE_URL` and initialize its schema once:
 
 ```bash
 npx dotenv -e .env.local -- npx tsx scripts/db-setup.mts
@@ -109,7 +113,8 @@ authentication or rate limiting before operating it as a shared public service.
 
 ### Any Node.js host
 
-Provide the same environment variables through your hosting platform, then run:
+Provide the environment variables you need through your hosting platform, then
+run:
 
 ```bash
 npm ci
@@ -122,6 +127,10 @@ The server listens on the platform-provided `PORT`. Point your MCP client to
 
 An MCP-only deployment does not need `DATABASE_URL` or `AI_GATEWAY_API_KEY`.
 Those variables are only needed for the web chat and its history sidebar.
+
+For a single-instance web app, mount persistent storage and optionally set
+`REPO_READER_DB_PATH` to a location on that volume. Use Postgres for ephemeral
+filesystems, multiple application instances, or team deployments.
 
 The default eve channel policy in `agent/channels/eve.ts` permits local
 development and callers authenticated by Vercel OIDC. Before deploying the web
@@ -143,9 +152,9 @@ npx vercel env add GITHUB_TOKEN
 npx vercel deploy --prod
 ```
 
-The Neon integration supplies `DATABASE_URL`; you can instead add the connection
-string from any Postgres database you own. `GITHUB_TOKEN` is optional and can be
-omitted.
+Vercel has an ephemeral filesystem, so its web app requires `DATABASE_URL`. The
+Neon integration supplies it; you can instead add the connection string from
+any Postgres database you own. `GITHUB_TOKEN` is optional and can be omitted.
 
 **Before making the deployment public, read `agent/channels/eve.ts`.** eve fails
 closed: the current policy admits local development and Vercel OIDC callers, and

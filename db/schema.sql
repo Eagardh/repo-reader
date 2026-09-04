@@ -1,4 +1,5 @@
--- Index of chat sessions shown in the sidebar.
+-- Postgres index of chat sessions shown in the sidebar.
+-- Local SQLite installs create the equivalent schema automatically.
 --
 -- Deliberately does NOT store the transcript. eve already persists every
 -- session durably and replays it through `resume`, so a messages table here

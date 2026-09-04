@@ -6,12 +6,12 @@
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 
-const url = process.env.DATABASE_URL;
+const url = process.env.DATABASE_URL?.trim();
 if (!url) {
-  console.error(
-    "DATABASE_URL is not set. Run `vercel env pull .env.local --yes`, then re-run with dotenv.",
+  console.log(
+    "DATABASE_URL is not set. Nothing to do: SQLite initializes automatically on first use.",
   );
-  process.exit(1);
+  process.exit(0);
 }
 
 const sql = neon(url);

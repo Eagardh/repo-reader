@@ -1,5 +1,6 @@
 import "server-only";
-import { getSql } from "./db";
+import type { ChatRow } from "./chat-store";
+import { getChatStore } from "./db";
 
 export type Chat = {
   sessionId: string;
@@ -9,15 +10,7 @@ export type Chat = {
   updatedAt: string;
 };
 
-type Row = {
-  session_id: string;
-  title: string;
-  repo: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-const toChat = (row: Row): Chat => ({
+const toChat = (row: ChatRow): Chat => ({
   sessionId: row.session_id,
   title: row.title,
   repo: row.repo,
@@ -26,24 +19,15 @@ const toChat = (row: Row): Chat => ({
 });
 
 export async function listChats(limit = 100): Promise<Chat[]> {
-  const sql = getSql();
-  const rows = (await sql`
-    select session_id, title, repo, created_at, updated_at
-    from chats
-    order by updated_at desc
-    limit ${limit}
-  `) as Row[];
+  const store = await getChatStore();
+  const rows = await store.list(Math.max(1, Math.min(limit, 500)));
   return rows.map(toChat);
 }
 
 export async function getChat(sessionId: string): Promise<Chat | null> {
-  const sql = getSql();
-  const rows = (await sql`
-    select session_id, title, repo, created_at, updated_at
-    from chats
-    where session_id = ${sessionId}
-  `) as Row[];
-  return rows[0] ? toChat(rows[0]) : null;
+  const store = await getChatStore();
+  const row = await store.get(sessionId);
+  return row ? toChat(row) : null;
 }
 
 /**
@@ -58,31 +42,17 @@ export async function upsertChat(input: {
   title?: string;
   repo?: string | null;
 }): Promise<void> {
-  const sql = getSql();
-  await sql`
-    insert into chats (session_id, title, repo)
-    values (
-      ${input.sessionId},
-      ${input.title ?? "New chat"},
-      ${input.repo ?? null}
-    )
-    on conflict (session_id) do update set
-      title      = coalesce(nullif(excluded.title, 'New chat'), chats.title),
-      repo       = coalesce(excluded.repo, chats.repo),
-      updated_at = now()
-  `;
+  const store = await getChatStore();
+  await store.upsert(input);
 }
 
 export async function renameChat(sessionId: string, title: string): Promise<void> {
-  const sql = getSql();
-  await sql`
-    update chats set title = ${title}, updated_at = now()
-    where session_id = ${sessionId}
-  `;
+  const store = await getChatStore();
+  await store.rename(sessionId, title);
 }
 
 export async function deleteChat(sessionId: string): Promise<void> {
-  const sql = getSql();
+  const store = await getChatStore();
   // Removes the sidebar entry only. eve owns the durable session itself.
-  await sql`delete from chats where session_id = ${sessionId}`;
+  await store.delete(sessionId);
 }

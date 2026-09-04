@@ -1,6 +1,6 @@
 {
   "name": "repo-reader",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A self-hosted AI agent and MCP server for reading public GitHub repositories.",
   "license": "MIT",
@@ -21,7 +21,8 @@
     "start": "next start",
     "lint": "eslint",
     "mcp:dev": "mcp-use dev --mcp-dir mcp --port 3001",
-    "mcp:build": "mcp-use build --mcp-dir mcp"
+    "mcp:build": "mcp-use build --mcp-dir mcp",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -68,7 +69,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv-cli": "^11.0.0",
