@@ -44,7 +44,7 @@
     "eve": "^0.47.6",
     "input-otp": "^1.5.0",
     "lucide-react": "^1.38.0",
-    "mcp-use": "^2.4.1",
+    "mcp-use": "^2.8.2",
     "media-chrome": "^4.19.2",
     "motion": "^13.1.1",
     "nanoid": "^6.0.1",
